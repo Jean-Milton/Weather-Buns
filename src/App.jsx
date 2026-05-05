@@ -3,6 +3,12 @@ import { Plus, Trash2, RefreshCw, MapPin, TrendingUp, AlertCircle, Cloud, Thermo
 
 // Top 10 most popular consumer weather services (by user base and reviewer rankings, 2026).
 // Each entry links to the service and to public documentation of its data sources where available.
+//
+// `primary` = models the app weights most heavily in its forecast (best signal for live accuracy).
+// `matches` = all models known to be in the app's blend (used for the dot indicators).
+// `proxyConfidence` = editorial estimate (0–1) of how well our model-based scoring proxies
+//   what the user actually sees in the app. High = transparent, model-driven blend with
+//   little proprietary processing. Low = heavy proprietary tuning we can't observe.
 const SERVICES = [
   {
     rank: 1,
@@ -12,6 +18,9 @@ const SERVICES = [
     sourceUrl: "https://www.ibm.com/products/environmental-intelligence",
     notes: "The most-downloaded weather app worldwide, ~425M monthly users. Owned by IBM. Uses IBM's Global High-Resolution Atmospheric Forecasting System (GRAF) blended with NOAA models and station data. Exact mix is proprietary.",
     matches: ["gfs_seamless"],
+    primary: ["gfs_seamless"],
+    proxyConfidence: 0.50,
+    proxyNote: "Heavy proprietary IBM GRAF blending on top of GFS — we see the input, not the output.",
   },
   {
     rank: 2,
@@ -21,6 +30,9 @@ const SERVICES = [
     sourceUrl: "https://www.accuweather.com/en/about",
     notes: "Famous for MinuteCast minute-by-minute precipitation forecasts. Ingests GFS, ECMWF, and other public models, then applies proprietary tuning by in-house meteorologists.",
     matches: ["gfs_seamless", "ecmwf_ifs025"],
+    primary: ["gfs_seamless", "ecmwf_ifs025"],
+    proxyConfidence: 0.40,
+    proxyNote: "Heavy proprietary tuning by in-house meteorologists; our models are inputs, not the recipe.",
   },
   {
     rank: 3,
@@ -30,6 +42,9 @@ const SERVICES = [
     sourceUrl: "https://developer.apple.com/weatherkit/data-source-attribution/",
     notes: "Apple publishes the full model list: NOAA GFS, ECMWF, DWD ICON, Météo-France, JMA, and Environment Canada GEM. Replaced The Weather Channel as data source in iOS 16.",
     matches: ["gfs_seamless", "ecmwf_ifs025", "icon_seamless", "gem_seamless"],
+    primary: ["gfs_seamless", "ecmwf_ifs025", "icon_seamless", "gem_seamless"],
+    proxyConfidence: 0.95,
+    proxyNote: "Apple publishes the full model list. We score all four of its main inputs directly.",
   },
   {
     rank: 4,
@@ -39,6 +54,9 @@ const SERVICES = [
     sourceUrl: "https://www.wunderground.com/about/data",
     notes: "Owned by IBM since 2012. Same forecast engine as weather.com, augmented by the world's largest network of personal weather stations for hyperlocal current conditions.",
     matches: ["gfs_seamless"],
+    primary: ["gfs_seamless"],
+    proxyConfidence: 0.55,
+    proxyNote: "Same IBM GRAF blend as weather.com, plus a PWS network we can't observe.",
   },
   {
     rank: 5,
@@ -48,6 +66,9 @@ const SERVICES = [
     sourceUrl: "https://support.google.com/websearch/answer/12274493",
     notes: "Google's search weather card and Pixel Weather app surface data licensed from weather.com / The Weather Company.",
     matches: ["gfs_seamless"],
+    primary: ["gfs_seamless"],
+    proxyConfidence: 0.55,
+    proxyNote: "Reflects whatever weather.com sends — which includes proprietary IBM blending.",
   },
   {
     rank: 6,
@@ -57,6 +78,10 @@ const SERVICES = [
     sourceUrl: "https://community.windy.com/topic/12/the-difference-between-the-models",
     notes: "Doesn't make its own forecast — visualizes raw output from ECMWF, GFS, ICON, NEMS, and others side-by-side. Beloved by sailors, pilots, and surfers for its 40+ map layers.",
     matches: ["ecmwf_ifs025", "gfs_seamless", "icon_seamless"],
+    primary: ["ecmwf_ifs025", "gfs_seamless", "icon_seamless"],
+    proxyConfidence: 0.90,
+    proxyNote: "No proprietary blending — Windy shows raw model output. Accuracy depends on which model you pick.",
+    userConfigurable: true,
   },
   {
     rank: 7,
@@ -66,6 +91,9 @@ const SERVICES = [
     sourceUrl: "https://www.weather.gov/about/forecasts",
     notes: "Official US forecasts. Human meteorologists at local NWS offices adjust output from NOAA's own model suite (GFS, HRRR, NAM, RAP). Free and public — the upstream source for many other apps.",
     matches: ["gfs_seamless"],
+    primary: ["gfs_seamless"],
+    proxyConfidence: 0.70,
+    proxyNote: "Mostly GFS-driven, but human forecasters tweak it during severe weather — invisible to our scoring.",
   },
   {
     rank: 8,
@@ -75,6 +103,9 @@ const SERVICES = [
     sourceUrl: "https://www.theweathernetwork.com/ca/about-us",
     notes: "Canada's most-used weather service, owned by Pelmorex. Combines Environment Canada GEM data with its own meteorologist team and proprietary modelling. Operates MétéoMédia in Quebec.",
     matches: ["gem_seamless", "gfs_seamless"],
+    primary: ["gem_seamless"],
+    proxyConfidence: 0.65,
+    proxyNote: "Primarily GEM-driven with Pelmorex's own meteorologist overlay.",
   },
   {
     rank: 9,
@@ -84,6 +115,9 @@ const SERVICES = [
     sourceUrl: "https://eccc-msc.github.io/open-data/msc-data/nwp_gem-global/readme_gem-global_en/",
     notes: "Canada's official forecasts from the Meteorological Service of Canada. Powered by the GEM model suite. Free, public, and the upstream source for nearly every Canadian weather app and broadcaster.",
     matches: ["gem_seamless"],
+    primary: ["gem_seamless"],
+    proxyConfidence: 0.85,
+    proxyNote: "Almost entirely GEM-driven; some human adjustment for warnings.",
   },
   {
     rank: 10,
@@ -93,6 +127,10 @@ const SERVICES = [
     sourceUrl: "https://www.meetcarrot.com/weather/faq.html",
     notes: "Snarky AI-personality weather app with a cult following. Free tier uses Foreca; premium lets you choose Apple WeatherKit, AccuWeather, Foreca, or Met Office as the forecast source.",
     matches: ["gfs_seamless", "ecmwf_ifs025", "icon_seamless", "gem_seamless"],
+    primary: ["gfs_seamless", "ecmwf_ifs025", "icon_seamless", "gem_seamless"],
+    proxyConfidence: 0.50,
+    proxyNote: "Accuracy depends entirely on which provider you've selected in settings.",
+    userConfigurable: true,
   },
 ];
 
@@ -103,6 +141,15 @@ const MODELS = [
   { id: "icon_seamless", name: "DWD ICON", color: "#f4a261", origin: "Germany" },
   { id: "gem_seamless", name: "MSC GEM", color: "#264653", origin: "Canada" },
 ];
+
+// Reverse lookup: for each model, which consumer apps list it as a primary input.
+// Used to label per-day model rows with the recognizable app names that depend on them.
+const APPS_BY_MODEL = MODELS.reduce((acc, m) => {
+  acc[m.id] = SERVICES
+    .filter((s) => s.primary?.includes(m.id))
+    .map((s) => s.name.replace(/\s*\(.*\)\s*$/, "")); // strip parenthetical suffix
+  return acc;
+}, {});
 
 // =============================================================================
 // GEOCODING
@@ -649,6 +696,71 @@ export default function ForecastAccuracy() {
     }),
   }));
 
+  // ---------------------------------------------------------------------------
+  // APP ACCURACY DATA
+  // ---------------------------------------------------------------------------
+  // Per-location, per-model accuracy at the day-1 horizon (the most decision-useful).
+  // We use this to drive the App Accuracy table: each app's "live accuracy" is the
+  // average MAE of its primary models in that location.
+  // Threshold for "ready": 14 verified day-1 forecasts.
+  const APP_READY_THRESHOLD = 14;
+
+  function computeLocationModelStats(loc) {
+    const out = {};
+    MODELS.forEach((m) => {
+      const tempMAEs = [];
+      let tempHits = 0, tempN = 0;
+      Object.entries(loc.history).forEach(([date, day]) => {
+        if (!day.actual) return;
+        const fcsts = day.forecasts[m.id];
+        if (!fcsts) return;
+        // Use the day-1 forecast specifically (closest to the day itself)
+        let f = null;
+        if (fcsts.high !== undefined) {
+          f = fcsts; // legacy schema
+        } else if (fcsts["1"]) {
+          f = fcsts["1"];
+        }
+        if (!f) return;
+        const s = scorePair(f, day.actual);
+        if (!s) return;
+        tempMAEs.push(s.tempMAE);
+        tempHits += s.tempHit; tempN += 1;
+      });
+      const meanMAE = tempMAEs.length > 0
+        ? tempMAEs.reduce((a, b) => a + b, 0) / tempMAEs.length
+        : null;
+      out[m.id] = { n: tempN, meanMAE, hitRate: tempN > 0 ? tempHits / tempN : null };
+    });
+    return out;
+  }
+
+  // For each location, compute model stats and then derive per-app accuracy
+  // by averaging across the app's primary models.
+  const appAccuracyByLocation = locations.map((loc) => {
+    const modelStats = computeLocationModelStats(loc);
+    const verifiedDays = Object.values(loc.history).filter((d) => d.actual).length;
+    const ready = verifiedDays >= APP_READY_THRESHOLD;
+    const daysRemaining = Math.max(0, APP_READY_THRESHOLD - verifiedDays);
+
+    const apps = SERVICES.map((svc) => {
+      const primaryStats = svc.primary
+        .map((mid) => modelStats[mid])
+        .filter((s) => s.meanMAE != null);
+      if (primaryStats.length === 0) {
+        return { ...svc, liveMAE: null, liveHitRate: null, liveN: 0 };
+      }
+      // Average MAE and hit rate across the app's primary models.
+      // (Equal weighting — without paid API access we can't recover the true blend weights.)
+      const liveMAE = primaryStats.reduce((a, s) => a + s.meanMAE, 0) / primaryStats.length;
+      const liveHitRate = primaryStats.reduce((a, s) => a + s.hitRate, 0) / primaryStats.length;
+      const liveN = Math.min(...primaryStats.map((s) => s.n));
+      return { ...svc, liveMAE, liveHitRate, liveN };
+    });
+
+    return { loc, verifiedDays, ready, daysRemaining, apps };
+  });
+
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
       <style>{`
@@ -858,6 +970,145 @@ export default function ForecastAccuracy() {
           </section>
         )}
 
+        {/* App Accuracy Estimate — translates raw model scoring into consumer-app rankings */}
+        {appAccuracyByLocation.length > 0 && (
+          <section className="mb-10 border-2 border-stone-900 bg-white p-6">
+            <div className="text-xs mono uppercase tracking-[0.3em] text-stone-600 mb-1">
+              <Cloud size={14} className="inline-block mr-1 -mt-0.5" /> App Accuracy Estimate
+            </div>
+            <p className="text-sm text-stone-600 italic mb-5 max-w-3xl">
+              We can't directly score what apps like AccuWeather or The Weather Channel show you (no free API). Instead, this table combines two things: <strong className="display not-italic">Proxy Confidence</strong>, our static estimate of how well our model scoring reflects what the app actually displays; and <strong className="display not-italic">Live Accuracy</strong>, the day-1 performance of the underlying models in <em>your</em> location, once we have enough data.
+            </p>
+
+            {appAccuracyByLocation.map(({ loc, verifiedDays, ready, daysRemaining, apps }) => {
+              // Sort: when not ready, sort by proxy confidence desc.
+              // When ready, sort by liveMAE asc (best accuracy first), with userConfigurable apps last.
+              const sortedApps = [...apps].sort((a, b) => {
+                if (a.userConfigurable && !b.userConfigurable) return 1;
+                if (!a.userConfigurable && b.userConfigurable) return -1;
+                if (ready && a.liveMAE != null && b.liveMAE != null) {
+                  return a.liveMAE - b.liveMAE;
+                }
+                return b.proxyConfidence - a.proxyConfidence;
+              });
+
+              return (
+                <div key={loc.id} className="mb-8 last:mb-0">
+                  <div className="flex flex-wrap items-baseline justify-between gap-3 mb-3 pb-2 border-b border-stone-300">
+                    <div className="flex items-baseline gap-2">
+                      <MapPin size={14} className="text-stone-600" />
+                      <span className="display text-lg font-bold">{loc.name}</span>
+                    </div>
+                    {ready ? (
+                      <span className="mono text-xs uppercase tracking-wider bg-emerald-200 text-emerald-900 px-2 py-0.5">
+                        Live accuracy ready · {verifiedDays} verified days
+                      </span>
+                    ) : (
+                      <span className="mono text-xs uppercase tracking-wider bg-amber-100 text-amber-900 px-2 py-0.5">
+                        Still measuring · {daysRemaining} {daysRemaining === 1 ? "day" : "days"} until ready
+                      </span>
+                    )}
+                  </div>
+
+                  {!ready && (
+                    <div className="mb-3 text-xs text-stone-600 italic">
+                      We need {APP_READY_THRESHOLD} days of verified observations before live accuracy is meaningful. Currently at {verifiedDays}/{APP_READY_THRESHOLD}.
+                    </div>
+                  )}
+
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-stone-300 text-xs mono uppercase tracking-wider text-stone-500">
+                        <th className="text-left py-2">App</th>
+                        <th className="text-left hidden sm:table-cell">Models Used</th>
+                        <th className="text-center">Proxy Confidence</th>
+                        <th className="text-right">Live Accuracy<br/><span className="opacity-60">(day-1, this location)</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedApps.map((app) => {
+                        const proxyColor = app.proxyConfidence >= 0.75 ? "bg-emerald-500" :
+                                           app.proxyConfidence >= 0.55 ? "bg-amber-400" : "bg-red-500";
+                        const proxyLabel = app.proxyConfidence >= 0.75 ? "Strong" :
+                                           app.proxyConfidence >= 0.55 ? "Medium" : "Weak";
+                        return (
+                          <tr key={app.name} className="border-b border-stone-100 align-top">
+                            <td className="py-3">
+                              <a
+                                href={app.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="display font-bold hover:underline flex items-center gap-1"
+                              >
+                                {app.name.replace(/\s*\(.*\)\s*$/, "")}
+                                <ExternalLink size={11} className="opacity-50" />
+                              </a>
+                            </td>
+                            <td className="hidden sm:table-cell text-xs">
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {app.primary.map((mid) => {
+                                  const m = MODELS.find((x) => x.id === mid);
+                                  if (!m) return null;
+                                  return (
+                                    <span
+                                      key={mid}
+                                      className="mono px-1.5 py-0.5 text-stone-700"
+                                      style={{ borderLeft: `3px solid ${m.color}`, backgroundColor: "#f5f5f4" }}
+                                      title={m.name}
+                                    >
+                                      {m.name}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </td>
+                            <td className="text-center">
+                              <div className="inline-flex flex-col items-center gap-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`inline-block w-2.5 h-2.5 rounded-full ${proxyColor}`} />
+                                  <span className="mono text-xs font-bold">{proxyLabel}</span>
+                                </div>
+                                <span className="mono text-xs text-stone-500" title={app.proxyNote}>
+                                  {(app.proxyConfidence * 100).toFixed(0)}/100
+                                </span>
+                              </div>
+                            </td>
+                            <td className="text-right">
+                              {app.userConfigurable ? (
+                                <span className="mono text-xs text-stone-500 italic">User-configurable</span>
+                              ) : !ready ? (
+                                <span className="mono text-xs text-stone-400">— still measuring —</span>
+                              ) : app.liveMAE == null ? (
+                                <span className="mono text-xs text-stone-400">no data</span>
+                              ) : (
+                                <div>
+                                  <div className="mono font-bold">{app.liveMAE.toFixed(2)}°F MAE</div>
+                                  <div className="mono text-xs text-stone-500">
+                                    {(app.liveHitRate * 100).toFixed(0)}% within 3°F · n={app.liveN}
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
+
+            <div className="mt-5 pt-4 border-t border-stone-200 text-xs text-stone-500 italic space-y-2">
+              <p>
+                <strong className="display not-italic text-stone-700">Proxy Confidence</strong> is editorial — based on what each app publicly discloses about its blend. Apps with heavy proprietary processing (AccuWeather, The Weather Channel) score lower because what we measure is the input, not the output the app shows you. Hover the percentage to see the reasoning.
+              </p>
+              <p>
+                <strong className="display not-italic text-stone-700">Live Accuracy</strong> averages the day-1 mean absolute temperature error of each app's primary underlying models for your specific location. Without paid API access, we can't recover each app's true blend weights — we treat the primary models with equal weighting, which is a simplification. Low MAE = closer to actual observed temperature.
+              </p>
+            </div>
+          </section>
+        )}
+
         {/* Sources panel */}
         <section className="mb-10 border-2 border-stone-900 bg-white">
           <button
@@ -1038,6 +1289,12 @@ function DayRow({ date, day, isToday }) {
               <div className="w-32 flex-shrink-0">
                 <div className="display font-bold text-sm">{model.name}</div>
                 <div className="mono text-xs text-stone-500">{model.origin} · {lead}d lead</div>
+                {APPS_BY_MODEL[model.id]?.length > 0 && (
+                  <div className="text-xs text-stone-600 italic mt-1 leading-tight">
+                    powers {APPS_BY_MODEL[model.id].slice(0, 2).join(", ")}
+                    {APPS_BY_MODEL[model.id].length > 2 && ` +${APPS_BY_MODEL[model.id].length - 2}`}
+                  </div>
+                )}
               </div>
               <div className="flex-1">
                 <Metrics m={forecast} />
