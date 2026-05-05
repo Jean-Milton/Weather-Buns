@@ -134,6 +134,13 @@ const SERVICES = [
   },
 ];
 
+// Build version — bump this whenever shipping changes so the deployed version is identifiable.
+// Visible in the header as a small badge next to the issue line.
+const BUILD_VERSION = "v0.2.0";
+const BUILD_DATE = "2026-05-05";
+const BUILD_NOTES = "Adds App Accuracy Estimate table (per-app proxy confidence + live accuracy with 14-day countdown). Adds 'powers...' subtitle to per-day model rows.";
+
+
 // Forecast models offered by Open-Meteo (free, no key required)
 const MODELS = [
   { id: "gfs_seamless", name: "NOAA GFS", color: "#e63946", origin: "USA" },
@@ -776,8 +783,14 @@ export default function ForecastAccuracy() {
       {/* Header */}
       <header className="border-b border-stone-900 bg-stone-100 relative grain overflow-hidden">
         <div className="max-w-6xl mx-auto px-6 py-10 relative">
-          <div className="text-xs mono uppercase tracking-[0.3em] text-stone-600 mb-3">
-            Vol. 01 · Forecast Verification Bureau
+          <div className="text-xs mono uppercase tracking-[0.3em] text-stone-600 mb-3 flex flex-wrap items-center gap-3">
+            <span>Vol. 01 · Forecast Verification Bureau</span>
+            <span
+              className="px-2 py-0.5 bg-stone-900 text-stone-50 normal-case tracking-normal"
+              title={`${BUILD_DATE} — ${BUILD_NOTES}`}
+            >
+              build {BUILD_VERSION}
+            </span>
           </div>
           <h1 className="display text-5xl md:text-7xl font-black leading-none mb-3">
             Who Got The Weather Right?
@@ -827,6 +840,148 @@ export default function ForecastAccuracy() {
             Forecasts are recorded the day they're issued. Actuals appear once observation data catches up (usually within 1–2 days).
           </p>
         </section>
+
+        {/* App Accuracy Estimate — translates raw model scoring into consumer-app rankings */}
+        {/* Always visible when there's at least one location; shows countdown until live data is ready. */}
+        {appAccuracyByLocation.length > 0 && (
+          <section className="mb-10 border-2 border-stone-900 bg-white p-6">
+            <div className="text-xs mono uppercase tracking-[0.3em] text-stone-600 mb-1">
+              <Cloud size={14} className="inline-block mr-1 -mt-0.5" /> App Accuracy Estimate
+            </div>
+            <p className="text-sm text-stone-600 italic mb-5 max-w-3xl">
+              We can't directly score what apps like AccuWeather or The Weather Channel show you (no free API). Instead, this table combines two things: <strong className="display not-italic">Proxy Confidence</strong>, our static estimate of how well our model scoring reflects what the app actually displays; and <strong className="display not-italic">Live Accuracy</strong>, the day-1 performance of the underlying models in <em>your</em> location, once we have enough data.
+            </p>
+
+            {appAccuracyByLocation.map(({ loc, verifiedDays, ready, daysRemaining, apps }) => {
+              // Sort: when not ready, sort by proxy confidence desc.
+              // When ready, sort by liveMAE asc (best accuracy first), with userConfigurable apps last.
+              const sortedApps = [...apps].sort((a, b) => {
+                if (a.userConfigurable && !b.userConfigurable) return 1;
+                if (!a.userConfigurable && b.userConfigurable) return -1;
+                if (ready && a.liveMAE != null && b.liveMAE != null) {
+                  return a.liveMAE - b.liveMAE;
+                }
+                return b.proxyConfidence - a.proxyConfidence;
+              });
+
+              return (
+                <div key={loc.id} className="mb-8 last:mb-0">
+                  <div className="flex flex-wrap items-baseline justify-between gap-3 mb-3 pb-2 border-b border-stone-300">
+                    <div className="flex items-baseline gap-2">
+                      <MapPin size={14} className="text-stone-600" />
+                      <span className="display text-lg font-bold">{loc.name}</span>
+                    </div>
+                    {ready ? (
+                      <span className="mono text-xs uppercase tracking-wider bg-emerald-200 text-emerald-900 px-2 py-0.5">
+                        Live accuracy ready · {verifiedDays} verified days
+                      </span>
+                    ) : (
+                      <span className="mono text-xs uppercase tracking-wider bg-amber-100 text-amber-900 px-2 py-0.5">
+                        Still measuring · {daysRemaining} {daysRemaining === 1 ? "day" : "days"} until ready
+                      </span>
+                    )}
+                  </div>
+
+                  {!ready && (
+                    <div className="mb-3 text-xs text-stone-600 italic">
+                      We need {APP_READY_THRESHOLD} days of verified observations before live accuracy is meaningful. Currently at {verifiedDays}/{APP_READY_THRESHOLD}.
+                    </div>
+                  )}
+
+                  <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
+                  <table className="w-full text-sm min-w-[480px]">
+                    <thead>
+                      <tr className="border-b border-stone-300 text-xs mono uppercase tracking-wider text-stone-500">
+                        <th className="text-left py-2">App</th>
+                        <th className="text-left hidden sm:table-cell">Models Used</th>
+                        <th className="text-center">Proxy Confidence</th>
+                        <th className="text-right">Live Accuracy<br/><span className="opacity-60">(day-1, this location)</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedApps.map((app) => {
+                        const proxyColor = app.proxyConfidence >= 0.75 ? "bg-emerald-500" :
+                                           app.proxyConfidence >= 0.55 ? "bg-amber-400" : "bg-red-500";
+                        const proxyLabel = app.proxyConfidence >= 0.75 ? "Strong" :
+                                           app.proxyConfidence >= 0.55 ? "Medium" : "Weak";
+                        return (
+                          <tr key={app.name} className="border-b border-stone-100 align-top">
+                            <td className="py-3">
+                              <a
+                                href={app.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="display font-bold hover:underline flex items-center gap-1"
+                              >
+                                {app.name.replace(/\s*\(.*\)\s*$/, "")}
+                                <ExternalLink size={11} className="opacity-50" />
+                              </a>
+                            </td>
+                            <td className="hidden sm:table-cell text-xs">
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {app.primary.map((mid) => {
+                                  const m = MODELS.find((x) => x.id === mid);
+                                  if (!m) return null;
+                                  return (
+                                    <span
+                                      key={mid}
+                                      className="mono px-1.5 py-0.5 text-stone-700"
+                                      style={{ borderLeft: `3px solid ${m.color}`, backgroundColor: "#f5f5f4" }}
+                                      title={m.name}
+                                    >
+                                      {m.name}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </td>
+                            <td className="text-center">
+                              <div className="inline-flex flex-col items-center gap-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`inline-block w-2.5 h-2.5 rounded-full ${proxyColor}`} />
+                                  <span className="mono text-xs font-bold">{proxyLabel}</span>
+                                </div>
+                                <span className="mono text-xs text-stone-500" title={app.proxyNote}>
+                                  {(app.proxyConfidence * 100).toFixed(0)}/100
+                                </span>
+                              </div>
+                            </td>
+                            <td className="text-right">
+                              {app.userConfigurable ? (
+                                <span className="mono text-xs text-stone-500 italic">User-configurable</span>
+                              ) : !ready ? (
+                                <span className="mono text-xs text-stone-400">— still measuring —</span>
+                              ) : app.liveMAE == null ? (
+                                <span className="mono text-xs text-stone-400">no data</span>
+                              ) : (
+                                <div>
+                                  <div className="mono font-bold">{app.liveMAE.toFixed(2)}°F MAE</div>
+                                  <div className="mono text-xs text-stone-500">
+                                    {(app.liveHitRate * 100).toFixed(0)}% within 3°F · n={app.liveN}
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  </div>
+                </div>
+              );
+            })}
+
+            <div className="mt-5 pt-4 border-t border-stone-200 text-xs text-stone-500 italic space-y-2">
+              <p>
+                <strong className="display not-italic text-stone-700">Proxy Confidence</strong> is editorial — based on what each app publicly discloses about its blend. Apps with heavy proprietary processing (AccuWeather, The Weather Channel) score lower because what we measure is the input, not the output the app shows you. Hover the percentage to see the reasoning.
+              </p>
+              <p>
+                <strong className="display not-italic text-stone-700">Live Accuracy</strong> averages the day-1 mean absolute temperature error of each app's primary underlying models for your specific location. Without paid API access, we can't recover each app's true blend weights — we treat the primary models with equal weighting, which is a simplification. Low MAE = closer to actual observed temperature.
+              </p>
+            </div>
+          </section>
+        )}
 
         {/* Leaderboard */}
         {ranked.length > 0 && (
@@ -967,145 +1122,6 @@ export default function ForecastAccuracy() {
               Mean temperature error as the forecast looks further ahead. Lower is better. All models degrade as the horizon grows; the rate of degradation is what separates them.
             </p>
             <SkillChart skillByHorizon={skillByHorizon} />
-          </section>
-        )}
-
-        {/* App Accuracy Estimate — translates raw model scoring into consumer-app rankings */}
-        {appAccuracyByLocation.length > 0 && (
-          <section className="mb-10 border-2 border-stone-900 bg-white p-6">
-            <div className="text-xs mono uppercase tracking-[0.3em] text-stone-600 mb-1">
-              <Cloud size={14} className="inline-block mr-1 -mt-0.5" /> App Accuracy Estimate
-            </div>
-            <p className="text-sm text-stone-600 italic mb-5 max-w-3xl">
-              We can't directly score what apps like AccuWeather or The Weather Channel show you (no free API). Instead, this table combines two things: <strong className="display not-italic">Proxy Confidence</strong>, our static estimate of how well our model scoring reflects what the app actually displays; and <strong className="display not-italic">Live Accuracy</strong>, the day-1 performance of the underlying models in <em>your</em> location, once we have enough data.
-            </p>
-
-            {appAccuracyByLocation.map(({ loc, verifiedDays, ready, daysRemaining, apps }) => {
-              // Sort: when not ready, sort by proxy confidence desc.
-              // When ready, sort by liveMAE asc (best accuracy first), with userConfigurable apps last.
-              const sortedApps = [...apps].sort((a, b) => {
-                if (a.userConfigurable && !b.userConfigurable) return 1;
-                if (!a.userConfigurable && b.userConfigurable) return -1;
-                if (ready && a.liveMAE != null && b.liveMAE != null) {
-                  return a.liveMAE - b.liveMAE;
-                }
-                return b.proxyConfidence - a.proxyConfidence;
-              });
-
-              return (
-                <div key={loc.id} className="mb-8 last:mb-0">
-                  <div className="flex flex-wrap items-baseline justify-between gap-3 mb-3 pb-2 border-b border-stone-300">
-                    <div className="flex items-baseline gap-2">
-                      <MapPin size={14} className="text-stone-600" />
-                      <span className="display text-lg font-bold">{loc.name}</span>
-                    </div>
-                    {ready ? (
-                      <span className="mono text-xs uppercase tracking-wider bg-emerald-200 text-emerald-900 px-2 py-0.5">
-                        Live accuracy ready · {verifiedDays} verified days
-                      </span>
-                    ) : (
-                      <span className="mono text-xs uppercase tracking-wider bg-amber-100 text-amber-900 px-2 py-0.5">
-                        Still measuring · {daysRemaining} {daysRemaining === 1 ? "day" : "days"} until ready
-                      </span>
-                    )}
-                  </div>
-
-                  {!ready && (
-                    <div className="mb-3 text-xs text-stone-600 italic">
-                      We need {APP_READY_THRESHOLD} days of verified observations before live accuracy is meaningful. Currently at {verifiedDays}/{APP_READY_THRESHOLD}.
-                    </div>
-                  )}
-
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-stone-300 text-xs mono uppercase tracking-wider text-stone-500">
-                        <th className="text-left py-2">App</th>
-                        <th className="text-left hidden sm:table-cell">Models Used</th>
-                        <th className="text-center">Proxy Confidence</th>
-                        <th className="text-right">Live Accuracy<br/><span className="opacity-60">(day-1, this location)</span></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedApps.map((app) => {
-                        const proxyColor = app.proxyConfidence >= 0.75 ? "bg-emerald-500" :
-                                           app.proxyConfidence >= 0.55 ? "bg-amber-400" : "bg-red-500";
-                        const proxyLabel = app.proxyConfidence >= 0.75 ? "Strong" :
-                                           app.proxyConfidence >= 0.55 ? "Medium" : "Weak";
-                        return (
-                          <tr key={app.name} className="border-b border-stone-100 align-top">
-                            <td className="py-3">
-                              <a
-                                href={app.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="display font-bold hover:underline flex items-center gap-1"
-                              >
-                                {app.name.replace(/\s*\(.*\)\s*$/, "")}
-                                <ExternalLink size={11} className="opacity-50" />
-                              </a>
-                            </td>
-                            <td className="hidden sm:table-cell text-xs">
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {app.primary.map((mid) => {
-                                  const m = MODELS.find((x) => x.id === mid);
-                                  if (!m) return null;
-                                  return (
-                                    <span
-                                      key={mid}
-                                      className="mono px-1.5 py-0.5 text-stone-700"
-                                      style={{ borderLeft: `3px solid ${m.color}`, backgroundColor: "#f5f5f4" }}
-                                      title={m.name}
-                                    >
-                                      {m.name}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            </td>
-                            <td className="text-center">
-                              <div className="inline-flex flex-col items-center gap-1">
-                                <div className="flex items-center gap-1.5">
-                                  <span className={`inline-block w-2.5 h-2.5 rounded-full ${proxyColor}`} />
-                                  <span className="mono text-xs font-bold">{proxyLabel}</span>
-                                </div>
-                                <span className="mono text-xs text-stone-500" title={app.proxyNote}>
-                                  {(app.proxyConfidence * 100).toFixed(0)}/100
-                                </span>
-                              </div>
-                            </td>
-                            <td className="text-right">
-                              {app.userConfigurable ? (
-                                <span className="mono text-xs text-stone-500 italic">User-configurable</span>
-                              ) : !ready ? (
-                                <span className="mono text-xs text-stone-400">— still measuring —</span>
-                              ) : app.liveMAE == null ? (
-                                <span className="mono text-xs text-stone-400">no data</span>
-                              ) : (
-                                <div>
-                                  <div className="mono font-bold">{app.liveMAE.toFixed(2)}°F MAE</div>
-                                  <div className="mono text-xs text-stone-500">
-                                    {(app.liveHitRate * 100).toFixed(0)}% within 3°F · n={app.liveN}
-                                  </div>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })}
-
-            <div className="mt-5 pt-4 border-t border-stone-200 text-xs text-stone-500 italic space-y-2">
-              <p>
-                <strong className="display not-italic text-stone-700">Proxy Confidence</strong> is editorial — based on what each app publicly discloses about its blend. Apps with heavy proprietary processing (AccuWeather, The Weather Channel) score lower because what we measure is the input, not the output the app shows you. Hover the percentage to see the reasoning.
-              </p>
-              <p>
-                <strong className="display not-italic text-stone-700">Live Accuracy</strong> averages the day-1 mean absolute temperature error of each app's primary underlying models for your specific location. Without paid API access, we can't recover each app's true blend weights — we treat the primary models with equal weighting, which is a simplification. Low MAE = closer to actual observed temperature.
-              </p>
-            </div>
           </section>
         )}
 
