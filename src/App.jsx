@@ -1,14 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, RefreshCw, MapPin, TrendingUp, AlertCircle, Cloud, Thermometer, Droplets, Wind, ExternalLink, BookOpen, ChevronDown } from "lucide-react";
+import { Plus, Trash2, RefreshCw, MapPin, TrendingUp, AlertCircle, Cloud, Thermometer, Droplets, Wind, ExternalLink, BookOpen, ChevronDown, Download, Upload } from "lucide-react";
 
 // Top 10 most popular consumer weather services (by user base and reviewer rankings, 2026).
 // Each entry links to the service and to public documentation of its data sources where available.
-//
-// `primary` = models the app weights most heavily in its forecast (best signal for live accuracy).
-// `matches` = all models known to be in the app's blend (used for the dot indicators).
-// `proxyConfidence` = editorial estimate (0–1) of how well our model-based scoring proxies
-//   what the user actually sees in the app. High = transparent, model-driven blend with
-//   little proprietary processing. Low = heavy proprietary tuning we can't observe.
 const SERVICES = [
   {
     rank: 1,
@@ -18,9 +12,6 @@ const SERVICES = [
     sourceUrl: "https://www.ibm.com/products/environmental-intelligence",
     notes: "The most-downloaded weather app worldwide, ~425M monthly users. Owned by IBM. Uses IBM's Global High-Resolution Atmospheric Forecasting System (GRAF) blended with NOAA models and station data. Exact mix is proprietary.",
     matches: ["gfs_seamless"],
-    primary: ["gfs_seamless"],
-    proxyConfidence: 0.50,
-    proxyNote: "Heavy proprietary IBM GRAF blending on top of GFS — we see the input, not the output.",
   },
   {
     rank: 2,
@@ -30,9 +21,6 @@ const SERVICES = [
     sourceUrl: "https://www.accuweather.com/en/about",
     notes: "Famous for MinuteCast minute-by-minute precipitation forecasts. Ingests GFS, ECMWF, and other public models, then applies proprietary tuning by in-house meteorologists.",
     matches: ["gfs_seamless", "ecmwf_ifs025"],
-    primary: ["gfs_seamless", "ecmwf_ifs025"],
-    proxyConfidence: 0.40,
-    proxyNote: "Heavy proprietary tuning by in-house meteorologists; our models are inputs, not the recipe.",
   },
   {
     rank: 3,
@@ -42,9 +30,6 @@ const SERVICES = [
     sourceUrl: "https://developer.apple.com/weatherkit/data-source-attribution/",
     notes: "Apple publishes the full model list: NOAA GFS, ECMWF, DWD ICON, Météo-France, JMA, and Environment Canada GEM. Replaced The Weather Channel as data source in iOS 16.",
     matches: ["gfs_seamless", "ecmwf_ifs025", "icon_seamless", "gem_seamless"],
-    primary: ["gfs_seamless", "ecmwf_ifs025", "icon_seamless", "gem_seamless"],
-    proxyConfidence: 0.95,
-    proxyNote: "Apple publishes the full model list. We score all four of its main inputs directly.",
   },
   {
     rank: 4,
@@ -54,9 +39,6 @@ const SERVICES = [
     sourceUrl: "https://www.wunderground.com/about/data",
     notes: "Owned by IBM since 2012. Same forecast engine as weather.com, augmented by the world's largest network of personal weather stations for hyperlocal current conditions.",
     matches: ["gfs_seamless"],
-    primary: ["gfs_seamless"],
-    proxyConfidence: 0.55,
-    proxyNote: "Same IBM GRAF blend as weather.com, plus a PWS network we can't observe.",
   },
   {
     rank: 5,
@@ -66,9 +48,6 @@ const SERVICES = [
     sourceUrl: "https://support.google.com/websearch/answer/12274493",
     notes: "Google's search weather card and Pixel Weather app surface data licensed from weather.com / The Weather Company.",
     matches: ["gfs_seamless"],
-    primary: ["gfs_seamless"],
-    proxyConfidence: 0.55,
-    proxyNote: "Reflects whatever weather.com sends — which includes proprietary IBM blending.",
   },
   {
     rank: 6,
@@ -78,10 +57,6 @@ const SERVICES = [
     sourceUrl: "https://community.windy.com/topic/12/the-difference-between-the-models",
     notes: "Doesn't make its own forecast — visualizes raw output from ECMWF, GFS, ICON, NEMS, and others side-by-side. Beloved by sailors, pilots, and surfers for its 40+ map layers.",
     matches: ["ecmwf_ifs025", "gfs_seamless", "icon_seamless"],
-    primary: ["ecmwf_ifs025", "gfs_seamless", "icon_seamless"],
-    proxyConfidence: 0.90,
-    proxyNote: "No proprietary blending — Windy shows raw model output. Accuracy depends on which model you pick.",
-    userConfigurable: true,
   },
   {
     rank: 7,
@@ -91,9 +66,6 @@ const SERVICES = [
     sourceUrl: "https://www.weather.gov/about/forecasts",
     notes: "Official US forecasts. Human meteorologists at local NWS offices adjust output from NOAA's own model suite (GFS, HRRR, NAM, RAP). Free and public — the upstream source for many other apps.",
     matches: ["gfs_seamless"],
-    primary: ["gfs_seamless"],
-    proxyConfidence: 0.70,
-    proxyNote: "Mostly GFS-driven, but human forecasters tweak it during severe weather — invisible to our scoring.",
   },
   {
     rank: 8,
@@ -103,9 +75,6 @@ const SERVICES = [
     sourceUrl: "https://www.theweathernetwork.com/ca/about-us",
     notes: "Canada's most-used weather service, owned by Pelmorex. Combines Environment Canada GEM data with its own meteorologist team and proprietary modelling. Operates MétéoMédia in Quebec.",
     matches: ["gem_seamless", "gfs_seamless"],
-    primary: ["gem_seamless"],
-    proxyConfidence: 0.65,
-    proxyNote: "Primarily GEM-driven with Pelmorex's own meteorologist overlay.",
   },
   {
     rank: 9,
@@ -115,9 +84,6 @@ const SERVICES = [
     sourceUrl: "https://eccc-msc.github.io/open-data/msc-data/nwp_gem-global/readme_gem-global_en/",
     notes: "Canada's official forecasts from the Meteorological Service of Canada. Powered by the GEM model suite. Free, public, and the upstream source for nearly every Canadian weather app and broadcaster.",
     matches: ["gem_seamless"],
-    primary: ["gem_seamless"],
-    proxyConfidence: 0.85,
-    proxyNote: "Almost entirely GEM-driven; some human adjustment for warnings.",
   },
   {
     rank: 10,
@@ -127,19 +93,8 @@ const SERVICES = [
     sourceUrl: "https://www.meetcarrot.com/weather/faq.html",
     notes: "Snarky AI-personality weather app with a cult following. Free tier uses Foreca; premium lets you choose Apple WeatherKit, AccuWeather, Foreca, or Met Office as the forecast source.",
     matches: ["gfs_seamless", "ecmwf_ifs025", "icon_seamless", "gem_seamless"],
-    primary: ["gfs_seamless", "ecmwf_ifs025", "icon_seamless", "gem_seamless"],
-    proxyConfidence: 0.50,
-    proxyNote: "Accuracy depends entirely on which provider you've selected in settings.",
-    userConfigurable: true,
   },
 ];
-
-// Build version — bump this whenever shipping changes so the deployed version is identifiable.
-// Visible in the header as a small badge next to the issue line.
-const BUILD_VERSION = "v0.2.0";
-const BUILD_DATE = "2026-05-05";
-const BUILD_NOTES = "Adds App Accuracy Estimate table (per-app proxy confidence + live accuracy with 14-day countdown). Adds 'powers...' subtitle to per-day model rows.";
-
 
 // Forecast models offered by Open-Meteo (free, no key required)
 const MODELS = [
@@ -148,15 +103,6 @@ const MODELS = [
   { id: "icon_seamless", name: "DWD ICON", color: "#f4a261", origin: "Germany" },
   { id: "gem_seamless", name: "MSC GEM", color: "#264653", origin: "Canada" },
 ];
-
-// Reverse lookup: for each model, which consumer apps list it as a primary input.
-// Used to label per-day model rows with the recognizable app names that depend on them.
-const APPS_BY_MODEL = MODELS.reduce((acc, m) => {
-  acc[m.id] = SERVICES
-    .filter((s) => s.primary?.includes(m.id))
-    .map((s) => s.name.replace(/\s*\(.*\)\s*$/, "")); // strip parenthetical suffix
-  return acc;
-}, {});
 
 // =============================================================================
 // GEOCODING
@@ -317,7 +263,7 @@ async function geocode(query) {
 const HORIZON_DAYS = 14;
 
 async function fetchForecast(lat, lon, model, timezone) {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max&timezone=${encodeURIComponent(timezone)}&forecast_days=${HORIZON_DAYS}&models=${model}&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max&timezone=${encodeURIComponent(timezone)}&forecast_days=${HORIZON_DAYS}&models=${model}&temperature_unit=celsius&wind_speed_unit=kmh&precipitation_unit=mm`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Forecast failed for ${model}`);
   const data = await r.json();
@@ -333,7 +279,7 @@ async function fetchForecast(lat, lon, model, timezone) {
 
 // Fetch the actual observed weather for a past date using ERA5 reanalysis
 async function fetchActual(lat, lon, date, timezone) {
-  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${date}&end_date=${date}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max&timezone=${encodeURIComponent(timezone)}&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch`;
+  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${date}&end_date=${date}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max&timezone=${encodeURIComponent(timezone)}&temperature_unit=celsius&wind_speed_unit=kmh&precipitation_unit=mm`;
   const r = await fetch(url);
   if (!r.ok) throw new Error("Archive lookup failed");
   const data = await r.json();
@@ -350,13 +296,13 @@ async function fetchActual(lat, lon, date, timezone) {
 // SCORING & STATISTICS
 // =============================================================================
 // Each forecast/actual pair yields several metrics:
-//   - tempHit: did the high+low forecast both land within 3°F of actual? (binary)
-//   - precipHit: did the forecast correctly predict rain/no-rain? (binary; >=0.04" = rain)
-//   - tempMAE: mean absolute error of high+low temperature in °F (continuous)
+//   - tempHit: did the high+low forecast both land within 1.5°C of actual? (binary)
+//   - precipHit: did the forecast correctly predict rain/no-rain? (binary; >=1mm = rain)
+//   - tempMAE: mean absolute error of high+low temperature in °C (continuous)
 // We track these three independently per (model, location, date).
 
-const TEMP_TOLERANCE_F = 3; // ForecastAdvisor uses 3°F
-const PRECIP_THRESHOLD_IN = 0.04; // ~1mm: standard "measurable precip" threshold
+const TEMP_TOLERANCE_C = 1.5; // ~3°F, comparable to ForecastAdvisor's threshold
+const PRECIP_THRESHOLD_MM = 1.0; // standard "measurable precipitation" threshold
 
 function scorePair(forecast, actual) {
   if (!forecast || !actual) return null;
@@ -364,9 +310,9 @@ function scorePair(forecast, actual) {
   const highErr = Math.abs(forecast.high - actual.high);
   const lowErr = Math.abs(forecast.low - actual.low);
   const tempMAE = (highErr + lowErr) / 2;
-  const tempHit = highErr <= TEMP_TOLERANCE_F && lowErr <= TEMP_TOLERANCE_F ? 1 : 0;
-  const fcastRain = (forecast.precip ?? 0) >= PRECIP_THRESHOLD_IN;
-  const actualRain = (actual.precip ?? 0) >= PRECIP_THRESHOLD_IN;
+  const tempHit = highErr <= TEMP_TOLERANCE_C && lowErr <= TEMP_TOLERANCE_C ? 1 : 0;
+  const fcastRain = (forecast.precip ?? 0) >= PRECIP_THRESHOLD_MM;
+  const actualRain = (actual.precip ?? 0) >= PRECIP_THRESHOLD_MM;
   const precipHit = fcastRain === actualRain ? 1 : 0;
   return { tempMAE, tempHit, precipHit };
 }
@@ -598,6 +544,65 @@ export default function ForecastAccuracy() {
     }
   }
 
+  // Export all data as a JSON file the user can download
+  function exportData() {
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      locations,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `forecast-accuracy-backup-${todayISO()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // Import data from a JSON file the user picks
+  function importData(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (!Array.isArray(data.locations)) throw new Error("Backup file is missing locations array.");
+        const proceed = window.confirm(
+          `Import ${data.locations.length} location(s)? This will REPLACE your current data. Consider exporting first.`
+        );
+        if (proceed) {
+          setLocations(data.locations);
+          setError(null);
+        }
+      } catch (err) {
+        setError(`Import failed: ${err.message}`);
+      }
+    };
+    reader.onerror = () => setError("Couldn't read backup file.");
+    reader.readAsText(file);
+    event.target.value = ""; // allow re-selecting the same file later
+  }
+
+  // Wipe everything. Two-step confirm because this is destructive.
+  function wipeAllData() {
+    if (locations.length === 0) {
+      setError(null);
+      return;
+    }
+    const first = window.confirm(
+      `Delete ALL ${locations.length} location(s) and their forecast history? This cannot be undone. Consider exporting a backup first.`
+    );
+    if (!first) return;
+    const second = window.confirm("Are you sure? This will permanently delete every saved forecast.");
+    if (!second) return;
+    setLocations([]);
+    setError(null);
+  }
+
   // Build per-(horizon, day) scored data. Key shape:
   // perHorizon[lead] = { perDay: { "locId|date": { modelId: scoreObj } } }
   // Plus perHorizon["all"] which pools every (date, lead) pair as independent samples.
@@ -703,71 +708,6 @@ export default function ForecastAccuracy() {
     }),
   }));
 
-  // ---------------------------------------------------------------------------
-  // APP ACCURACY DATA
-  // ---------------------------------------------------------------------------
-  // Per-location, per-model accuracy at the day-1 horizon (the most decision-useful).
-  // We use this to drive the App Accuracy table: each app's "live accuracy" is the
-  // average MAE of its primary models in that location.
-  // Threshold for "ready": 14 verified day-1 forecasts.
-  const APP_READY_THRESHOLD = 14;
-
-  function computeLocationModelStats(loc) {
-    const out = {};
-    MODELS.forEach((m) => {
-      const tempMAEs = [];
-      let tempHits = 0, tempN = 0;
-      Object.entries(loc.history).forEach(([date, day]) => {
-        if (!day.actual) return;
-        const fcsts = day.forecasts[m.id];
-        if (!fcsts) return;
-        // Use the day-1 forecast specifically (closest to the day itself)
-        let f = null;
-        if (fcsts.high !== undefined) {
-          f = fcsts; // legacy schema
-        } else if (fcsts["1"]) {
-          f = fcsts["1"];
-        }
-        if (!f) return;
-        const s = scorePair(f, day.actual);
-        if (!s) return;
-        tempMAEs.push(s.tempMAE);
-        tempHits += s.tempHit; tempN += 1;
-      });
-      const meanMAE = tempMAEs.length > 0
-        ? tempMAEs.reduce((a, b) => a + b, 0) / tempMAEs.length
-        : null;
-      out[m.id] = { n: tempN, meanMAE, hitRate: tempN > 0 ? tempHits / tempN : null };
-    });
-    return out;
-  }
-
-  // For each location, compute model stats and then derive per-app accuracy
-  // by averaging across the app's primary models.
-  const appAccuracyByLocation = locations.map((loc) => {
-    const modelStats = computeLocationModelStats(loc);
-    const verifiedDays = Object.values(loc.history).filter((d) => d.actual).length;
-    const ready = verifiedDays >= APP_READY_THRESHOLD;
-    const daysRemaining = Math.max(0, APP_READY_THRESHOLD - verifiedDays);
-
-    const apps = SERVICES.map((svc) => {
-      const primaryStats = svc.primary
-        .map((mid) => modelStats[mid])
-        .filter((s) => s.meanMAE != null);
-      if (primaryStats.length === 0) {
-        return { ...svc, liveMAE: null, liveHitRate: null, liveN: 0 };
-      }
-      // Average MAE and hit rate across the app's primary models.
-      // (Equal weighting — without paid API access we can't recover the true blend weights.)
-      const liveMAE = primaryStats.reduce((a, s) => a + s.meanMAE, 0) / primaryStats.length;
-      const liveHitRate = primaryStats.reduce((a, s) => a + s.hitRate, 0) / primaryStats.length;
-      const liveN = Math.min(...primaryStats.map((s) => s.n));
-      return { ...svc, liveMAE, liveHitRate, liveN };
-    });
-
-    return { loc, verifiedDays, ready, daysRemaining, apps };
-  });
-
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
       <style>{`
@@ -783,14 +723,8 @@ export default function ForecastAccuracy() {
       {/* Header */}
       <header className="border-b border-stone-900 bg-stone-100 relative grain overflow-hidden">
         <div className="max-w-6xl mx-auto px-6 py-10 relative">
-          <div className="text-xs mono uppercase tracking-[0.3em] text-stone-600 mb-3 flex flex-wrap items-center gap-3">
-            <span>Vol. 01 · Forecast Verification Bureau</span>
-            <span
-              className="px-2 py-0.5 bg-stone-900 text-stone-50 normal-case tracking-normal"
-              title={`${BUILD_DATE} — ${BUILD_NOTES}`}
-            >
-              build {BUILD_VERSION}
-            </span>
+          <div className="text-xs mono uppercase tracking-[0.3em] text-stone-600 mb-3">
+            Vol. 01 · Forecast Verification Bureau
           </div>
           <h1 className="display text-5xl md:text-7xl font-black leading-none mb-3">
             Who Got The Weather Right?
@@ -831,6 +765,32 @@ export default function ForecastAccuracy() {
               </button>
             )}
           </div>
+
+          {/* Backup row */}
+          <div className="flex flex-wrap gap-2 mb-2">
+            {locations.length > 0 && (
+              <button
+                onClick={exportData}
+                className="px-4 py-2 border border-stone-400 bg-white mono text-xs uppercase tracking-wider hover:bg-stone-50 flex items-center gap-2"
+                title="Download a JSON backup of all your data"
+              >
+                <Download size={14} /> Export Backup
+              </button>
+            )}
+            <label className="px-4 py-2 border border-stone-400 bg-white mono text-xs uppercase tracking-wider hover:bg-stone-50 flex items-center gap-2 cursor-pointer">
+              <Upload size={14} /> Import Backup
+              <input type="file" accept="application/json,.json" onChange={importData} className="hidden" />
+            </label>
+            {locations.length > 0 && (
+              <button
+                onClick={wipeAllData}
+                className="ml-auto px-4 py-2 border border-red-300 bg-white text-red-700 mono text-xs uppercase tracking-wider hover:bg-red-50 flex items-center gap-2"
+                title="Permanently delete all saved data"
+              >
+                <Trash2 size={14} /> Wipe All
+              </button>
+            )}
+          </div>
           {error && (
             <div className="text-sm text-red-700 mono flex items-center gap-2">
               <AlertCircle size={14} /> {error}
@@ -840,148 +800,6 @@ export default function ForecastAccuracy() {
             Forecasts are recorded the day they're issued. Actuals appear once observation data catches up (usually within 1–2 days).
           </p>
         </section>
-
-        {/* App Accuracy Estimate — translates raw model scoring into consumer-app rankings */}
-        {/* Always visible when there's at least one location; shows countdown until live data is ready. */}
-        {appAccuracyByLocation.length > 0 && (
-          <section className="mb-10 border-2 border-stone-900 bg-white p-6">
-            <div className="text-xs mono uppercase tracking-[0.3em] text-stone-600 mb-1">
-              <Cloud size={14} className="inline-block mr-1 -mt-0.5" /> App Accuracy Estimate
-            </div>
-            <p className="text-sm text-stone-600 italic mb-5 max-w-3xl">
-              We can't directly score what apps like AccuWeather or The Weather Channel show you (no free API). Instead, this table combines two things: <strong className="display not-italic">Proxy Confidence</strong>, our static estimate of how well our model scoring reflects what the app actually displays; and <strong className="display not-italic">Live Accuracy</strong>, the day-1 performance of the underlying models in <em>your</em> location, once we have enough data.
-            </p>
-
-            {appAccuracyByLocation.map(({ loc, verifiedDays, ready, daysRemaining, apps }) => {
-              // Sort: when not ready, sort by proxy confidence desc.
-              // When ready, sort by liveMAE asc (best accuracy first), with userConfigurable apps last.
-              const sortedApps = [...apps].sort((a, b) => {
-                if (a.userConfigurable && !b.userConfigurable) return 1;
-                if (!a.userConfigurable && b.userConfigurable) return -1;
-                if (ready && a.liveMAE != null && b.liveMAE != null) {
-                  return a.liveMAE - b.liveMAE;
-                }
-                return b.proxyConfidence - a.proxyConfidence;
-              });
-
-              return (
-                <div key={loc.id} className="mb-8 last:mb-0">
-                  <div className="flex flex-wrap items-baseline justify-between gap-3 mb-3 pb-2 border-b border-stone-300">
-                    <div className="flex items-baseline gap-2">
-                      <MapPin size={14} className="text-stone-600" />
-                      <span className="display text-lg font-bold">{loc.name}</span>
-                    </div>
-                    {ready ? (
-                      <span className="mono text-xs uppercase tracking-wider bg-emerald-200 text-emerald-900 px-2 py-0.5">
-                        Live accuracy ready · {verifiedDays} verified days
-                      </span>
-                    ) : (
-                      <span className="mono text-xs uppercase tracking-wider bg-amber-100 text-amber-900 px-2 py-0.5">
-                        Still measuring · {daysRemaining} {daysRemaining === 1 ? "day" : "days"} until ready
-                      </span>
-                    )}
-                  </div>
-
-                  {!ready && (
-                    <div className="mb-3 text-xs text-stone-600 italic">
-                      We need {APP_READY_THRESHOLD} days of verified observations before live accuracy is meaningful. Currently at {verifiedDays}/{APP_READY_THRESHOLD}.
-                    </div>
-                  )}
-
-                  <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
-                  <table className="w-full text-sm min-w-[480px]">
-                    <thead>
-                      <tr className="border-b border-stone-300 text-xs mono uppercase tracking-wider text-stone-500">
-                        <th className="text-left py-2">App</th>
-                        <th className="text-left hidden sm:table-cell">Models Used</th>
-                        <th className="text-center">Proxy Confidence</th>
-                        <th className="text-right">Live Accuracy<br/><span className="opacity-60">(day-1, this location)</span></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedApps.map((app) => {
-                        const proxyColor = app.proxyConfidence >= 0.75 ? "bg-emerald-500" :
-                                           app.proxyConfidence >= 0.55 ? "bg-amber-400" : "bg-red-500";
-                        const proxyLabel = app.proxyConfidence >= 0.75 ? "Strong" :
-                                           app.proxyConfidence >= 0.55 ? "Medium" : "Weak";
-                        return (
-                          <tr key={app.name} className="border-b border-stone-100 align-top">
-                            <td className="py-3">
-                              <a
-                                href={app.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="display font-bold hover:underline flex items-center gap-1"
-                              >
-                                {app.name.replace(/\s*\(.*\)\s*$/, "")}
-                                <ExternalLink size={11} className="opacity-50" />
-                              </a>
-                            </td>
-                            <td className="hidden sm:table-cell text-xs">
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {app.primary.map((mid) => {
-                                  const m = MODELS.find((x) => x.id === mid);
-                                  if (!m) return null;
-                                  return (
-                                    <span
-                                      key={mid}
-                                      className="mono px-1.5 py-0.5 text-stone-700"
-                                      style={{ borderLeft: `3px solid ${m.color}`, backgroundColor: "#f5f5f4" }}
-                                      title={m.name}
-                                    >
-                                      {m.name}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            </td>
-                            <td className="text-center">
-                              <div className="inline-flex flex-col items-center gap-1">
-                                <div className="flex items-center gap-1.5">
-                                  <span className={`inline-block w-2.5 h-2.5 rounded-full ${proxyColor}`} />
-                                  <span className="mono text-xs font-bold">{proxyLabel}</span>
-                                </div>
-                                <span className="mono text-xs text-stone-500" title={app.proxyNote}>
-                                  {(app.proxyConfidence * 100).toFixed(0)}/100
-                                </span>
-                              </div>
-                            </td>
-                            <td className="text-right">
-                              {app.userConfigurable ? (
-                                <span className="mono text-xs text-stone-500 italic">User-configurable</span>
-                              ) : !ready ? (
-                                <span className="mono text-xs text-stone-400">— still measuring —</span>
-                              ) : app.liveMAE == null ? (
-                                <span className="mono text-xs text-stone-400">no data</span>
-                              ) : (
-                                <div>
-                                  <div className="mono font-bold">{app.liveMAE.toFixed(2)}°F MAE</div>
-                                  <div className="mono text-xs text-stone-500">
-                                    {(app.liveHitRate * 100).toFixed(0)}% within 3°F · n={app.liveN}
-                                  </div>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                  </div>
-                </div>
-              );
-            })}
-
-            <div className="mt-5 pt-4 border-t border-stone-200 text-xs text-stone-500 italic space-y-2">
-              <p>
-                <strong className="display not-italic text-stone-700">Proxy Confidence</strong> is editorial — based on what each app publicly discloses about its blend. Apps with heavy proprietary processing (AccuWeather, The Weather Channel) score lower because what we measure is the input, not the output the app shows you. Hover the percentage to see the reasoning.
-              </p>
-              <p>
-                <strong className="display not-italic text-stone-700">Live Accuracy</strong> averages the day-1 mean absolute temperature error of each app's primary underlying models for your specific location. Without paid API access, we can't recover each app's true blend weights — we treat the primary models with equal weighting, which is a simplification. Low MAE = closer to actual observed temperature.
-              </p>
-            </div>
-          </section>
-        )}
 
         {/* Leaderboard */}
         {ranked.length > 0 && (
@@ -1032,8 +850,8 @@ export default function ForecastAccuracy() {
                 <tr className="border-b border-stone-300 text-xs mono uppercase tracking-wider text-stone-500">
                   <th className="text-left py-2">#</th>
                   <th className="text-left">Model</th>
-                  <th className="text-right">Temp MAE (°F)</th>
-                  <th className="text-right hidden md:table-cell">±3°F hit rate</th>
+                  <th className="text-right">Temp MAE (°C)</th>
+                  <th className="text-right hidden md:table-cell">±1.5°C hit rate</th>
                   <th className="text-right hidden md:table-cell">Precip hit rate</th>
                   <th className="text-right">n</th>
                 </tr>
@@ -1091,7 +909,7 @@ export default function ForecastAccuracy() {
                       <span className="mono flex-1 text-right">
                         {ci.mean != null ? (
                           <>
-                            Δ = {ci.mean.toFixed(2)}°F{" "}
+                            Δ = {ci.mean.toFixed(2)}°C{" "}
                             <span className="text-stone-500">[{ci.lo.toFixed(2)}, {ci.hi.toFixed(2)}]</span>{" "}
                             <span className={`px-1.5 py-0.5 text-xs ${significant ? "bg-emerald-200 text-emerald-900" : "bg-stone-200 text-stone-700"}`}>
                               {significant ? "significant" : "not significant"}
@@ -1219,32 +1037,162 @@ export default function ForecastAccuracy() {
 }
 
 function LocationCard({ loc, onRemove }) {
-  const days = Object.keys(loc.history).sort().reverse();
   const today = todayISO();
+  const allDates = Object.keys(loc.history).sort(); // ascending: oldest first
+  const verifiedDates = allDates.filter((d) => loc.history[d].actual && d < today).reverse(); // newest verified first
+  const upcomingDates = allDates.filter((d) => d >= today); // today, then ascending into future
+
+  // Tomorrow's forecast spread: range across all models, shortest lead available
+  const tomorrow = upcomingDates[1]; // index 0 is today, 1 is tomorrow
+  const tomorrowSummary = tomorrow ? buildDaySummary(loc.history[tomorrow]) : null;
+
+  // UI state: which date (if any) is expanded, and whether the verified history is shown
+  const [expandedDate, setExpandedDate] = useState(null);
+  const [showVerified, setShowVerified] = useState(false);
 
   return (
     <article className="border-2 border-stone-900 bg-white">
-      <header className="bg-stone-900 text-stone-50 px-5 py-3 flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <MapPin size={14} />
-          <span className="display text-xl font-bold">{loc.name}</span>
-          <span className="mono text-xs opacity-60">"{loc.query}"</span>
+      {/* Compact header */}
+      <header className="bg-stone-900 text-stone-50 px-5 py-3 flex justify-between items-start gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <MapPin size={14} className="flex-shrink-0" />
+            <span className="display text-lg font-bold truncate">{loc.name}</span>
+          </div>
+          {tomorrowSummary && (
+            <div className="mono text-xs opacity-70 mt-0.5">
+              Tomorrow: {tomorrowSummary.label}
+            </div>
+          )}
         </div>
-        <button onClick={onRemove} className="opacity-60 hover:opacity-100" aria-label="Remove">
+        <button onClick={onRemove} className="opacity-60 hover:opacity-100 flex-shrink-0 mt-1" aria-label="Remove location">
           <Trash2 size={14} />
         </button>
       </header>
 
-      {days.length === 0 ? (
-        <div className="p-6 text-stone-500 italic">No data yet — refresh to fetch today's forecasts.</div>
-      ) : (
-        <div className="divide-y divide-stone-200">
-          {days.map((d) => (
-            <DayRow key={d} date={d} day={loc.history[d]} isToday={d === today} />
-          ))}
+      {/* Upcoming date strip — today first, then forward */}
+      {upcomingDates.length > 0 && (
+        <div className="border-b border-stone-200">
+          <div className="px-5 pt-4 pb-2 text-xs mono uppercase tracking-wider text-stone-500">
+            Forecasts ahead
+          </div>
+          <div className="px-3 pb-3 flex gap-2 overflow-x-auto scrollbar-thin">
+            {upcomingDates.map((d) => (
+              <DateChip
+                key={d}
+                date={d}
+                day={loc.history[d]}
+                isToday={d === today}
+                isExpanded={expandedDate === d}
+                onToggle={() => setExpandedDate(expandedDate === d ? null : d)}
+              />
+            ))}
+          </div>
         </div>
       )}
+
+      {/* Expanded date detail */}
+      {expandedDate && loc.history[expandedDate] && (
+        <DayRow date={expandedDate} day={loc.history[expandedDate]} isToday={expandedDate === today} />
+      )}
+
+      {/* Verified history collapsible */}
+      {verifiedDates.length > 0 && (
+        <div className="border-t border-stone-200">
+          <button
+            onClick={() => setShowVerified(!showVerified)}
+            className="w-full px-5 py-3 flex justify-between items-center hover:bg-stone-50 text-left"
+          >
+            <span className="text-xs mono uppercase tracking-wider text-stone-600">
+              ✓ Verified history ({verifiedDates.length} day{verifiedDates.length === 1 ? "" : "s"})
+            </span>
+            <ChevronDown size={16} className={`transition-transform ${showVerified ? "rotate-180" : ""}`} />
+          </button>
+          {showVerified && (
+            <div className="border-t border-stone-200">
+              {verifiedDates.slice(0, 14).map((d) => (
+                <DayRow key={d} date={d} day={loc.history[d]} isToday={false} />
+              ))}
+              {verifiedDates.length > 14 && (
+                <div className="p-3 text-center text-xs mono text-stone-500 italic">
+                  Showing latest 14 of {verifiedDates.length} verified days.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {allDates.length === 0 && (
+        <div className="p-6 text-stone-500 italic">No data yet — tap Refresh All to fetch forecasts.</div>
+      )}
     </article>
+  );
+}
+
+// Build a one-line summary from a day's forecasts: range across models for the shortest lead
+function buildDaySummary(day) {
+  if (!day || !day.forecasts) return null;
+  const highs = [];
+  const lows = [];
+  const precips = [];
+  Object.values(day.forecasts).forEach((modelForecasts) => {
+    if (!modelForecasts) return;
+    // Old or new schema?
+    let f = null;
+    if (modelForecasts.high !== undefined) {
+      f = modelForecasts;
+    } else {
+      const leads = Object.keys(modelForecasts).map(Number).sort((a, b) => a - b);
+      if (leads.length > 0) f = modelForecasts[String(leads[0])];
+    }
+    if (f) {
+      if (f.high != null) highs.push(f.high);
+      if (f.low != null) lows.push(f.low);
+      if (f.precip != null) precips.push(f.precip);
+    }
+  });
+  if (highs.length === 0) return null;
+  const hi = Math.max(...highs), hiLo = Math.min(...highs);
+  const lo = Math.min(...lows), loHi = Math.max(...lows);
+  const maxPrecip = Math.max(...precips, 0);
+  const tempStr = hi === hiLo ? `${lo.toFixed(0)}–${hi.toFixed(0)}°` : `${lo.toFixed(0)}–${hi.toFixed(0)}° (spread ${(hi - hiLo).toFixed(0)}°)`;
+  const precipStr = maxPrecip >= 1 ? ` · up to ${maxPrecip.toFixed(0)}mm` : "";
+  return { label: tempStr + precipStr };
+}
+
+// A single date-chip in the horizontal strip
+function DateChip({ date, day, isToday, isExpanded, onToggle }) {
+  const dt = new Date(date + "T12:00:00");
+  const dayLabel = dt.toLocaleDateString("en-US", { weekday: "short" });
+  const dateLabel = dt.toLocaleDateString("en-US", { month: "numeric", day: "numeric" });
+  const hasForecasts = day?.forecasts && Object.keys(day.forecasts).length > 0;
+  const summary = hasForecasts ? buildDaySummary(day) : null;
+
+  let bg = "bg-stone-100 hover:bg-stone-200";
+  let text = "text-stone-700";
+  if (isToday) {
+    bg = "bg-yellow-100 hover:bg-yellow-200";
+    text = "text-stone-900";
+  }
+  if (isExpanded) {
+    bg = "bg-stone-900";
+    text = "text-stone-50";
+  }
+
+  return (
+    <button
+      onClick={onToggle}
+      className={`flex-shrink-0 px-3 py-2 border border-stone-300 ${bg} ${text} text-center min-w-[70px]`}
+    >
+      <div className="mono text-[10px] uppercase tracking-wider opacity-60">{dayLabel}</div>
+      <div className="display font-bold text-base leading-tight">{dateLabel}</div>
+      {summary ? (
+        <div className="mono text-[10px] mt-0.5 opacity-80 truncate">{summary.label.split(" ")[0]}</div>
+      ) : (
+        <div className="mono text-[10px] mt-0.5 opacity-40">—</div>
+      )}
+    </button>
   );
 }
 
@@ -1305,12 +1253,6 @@ function DayRow({ date, day, isToday }) {
               <div className="w-32 flex-shrink-0">
                 <div className="display font-bold text-sm">{model.name}</div>
                 <div className="mono text-xs text-stone-500">{model.origin} · {lead}d lead</div>
-                {APPS_BY_MODEL[model.id]?.length > 0 && (
-                  <div className="text-xs text-stone-600 italic mt-1 leading-tight">
-                    powers {APPS_BY_MODEL[model.id].slice(0, 2).join(", ")}
-                    {APPS_BY_MODEL[model.id].length > 2 && ` +${APPS_BY_MODEL[model.id].length - 2}`}
-                  </div>
-                )}
               </div>
               <div className="flex-1">
                 <Metrics m={forecast} />
@@ -1320,7 +1262,7 @@ function DayRow({ date, day, isToday }) {
                   <div className="mono text-xs text-stone-500">temp MAE</div>
                   <div className={`display text-xl font-bold ${isBest ? "text-emerald-700" : ""}`}>{score.tempMAE.toFixed(1)}°</div>
                   <div className="mono text-xs text-stone-500">
-                    {score.tempHit ? "✓" : "✗"} ±3°  ·  {score.precipHit ? "✓" : "✗"} precip
+                    {score.tempHit ? "✓" : "✗"} ±1.5°  ·  {score.precipHit ? "✓" : "✗"} precip
                   </div>
                 </div>
               )}
@@ -1336,9 +1278,9 @@ function Metrics({ m }) {
   if (!m) return null;
   return (
     <div className="flex flex-wrap gap-x-5 gap-y-1 mono text-sm">
-      <span className="flex items-center gap-1"><Thermometer size={12} className="text-red-600" />{fmt(m.high)}° / {fmt(m.low)}°</span>
-      <span className="flex items-center gap-1"><Droplets size={12} className="text-blue-600" />{fmt(m.precip, 2)}″</span>
-      <span className="flex items-center gap-1"><Wind size={12} className="text-stone-600" />{fmt(m.wind, 0)} mph</span>
+      <span className="flex items-center gap-1"><Thermometer size={12} className="text-red-600" />{fmt(m.high, 1)}° / {fmt(m.low, 1)}°</span>
+      <span className="flex items-center gap-1"><Droplets size={12} className="text-blue-600" />{fmt(m.precip, 1)} mm</span>
+      <span className="flex items-center gap-1"><Wind size={12} className="text-stone-600" />{fmt(m.wind, 0)} km/h</span>
     </div>
   );
 }
@@ -1355,7 +1297,7 @@ function formatDate(d) {
 
 function SkillChart({ skillByHorizon }) {
   // Simple inline SVG line chart. Each model is a line; x is forecast horizon in days,
-  // y is mean temp MAE in °F. Lines drawn only between points that have data.
+  // y is mean temp MAE in °C. Lines drawn only between points that have data.
   const W = 720, H = 280;
   const PAD = { top: 20, right: 20, bottom: 40, left: 50 };
   const innerW = W - PAD.left - PAD.right;
@@ -1401,7 +1343,7 @@ function SkillChart({ skillByHorizon }) {
           Forecast horizon (days ahead)
         </text>
         <text x={12} y={PAD.top + innerH / 2} textAnchor="middle" fontSize="11" fill="#44403c" fontFamily="JetBrains Mono, monospace" transform={`rotate(-90, 12, ${PAD.top + innerH / 2})`}>
-          Mean temp error (°F)
+          Mean temp error (°C)
         </text>
 
         {/* One line + dots per model */}
@@ -1414,7 +1356,7 @@ function SkillChart({ skillByHorizon }) {
               <path d={path} fill="none" stroke={model.color} strokeWidth="2.5" opacity="0.85" />
               {valid.map((p) => (
                 <circle key={p.horizon} cx={xScale(p.horizon)} cy={yScale(p.mae)} r="4" fill={model.color}>
-                  <title>{`${model.name} @ ${p.horizon}d: ${p.mae.toFixed(2)}°F  (n=${p.n})`}</title>
+                  <title>{`${model.name} @ ${p.horizon}d: ${p.mae.toFixed(2)}°C  (n=${p.n})`}</title>
                 </circle>
               ))}
             </g>
